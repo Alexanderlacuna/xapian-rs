@@ -2,10 +2,12 @@
 //!
 //! The checked-parse API is this fork's addition over upstream: Xapian
 //! parser errors surface as `Err(ParseError)` instead of panicking.
-//! The guaranteed-throw shapes below (dangling operator, invalid
-//! range bounds) are parser errors in every Xapian 1.4.x line; note
-//! that some odd-looking inputs (e.g. "a&&b") do NOT throw under
-//! libxapian 1.4.29 and are therefore not asserted here.
+//! The guaranteed-throw shape below (dangling operator) is a parser
+//! error in every Xapian 1.4.x line; note that some odd-looking inputs
+//! (e.g. "a&&b") do NOT throw under libxapian 1.4.29, and that a range
+//! whose bounds no processor handles falls back per Xapian's decline
+//! protocol (MatchNothing -> text fallback, parse Ok) rather than
+//! erroring -- mirroring gn3's C++ NumberValueRangeProcessor.
 
 use xapian_rs::{NumberRangeProcessor, ParseError, QueryParser, Stem, StemStrategy};
 
@@ -34,14 +36,17 @@ fn dangling_operator_returns_typed_error() {
 }
 
 #[test]
-fn invalid_range_bounds_return_typed_error() {
+fn unhandled_range_bounds_fall_back_to_text() {
+    // Xapian's decline protocol: when no range processor can handle
+    // the bounds, the range parses as text instead of erroring -- the
+    // same behavior as gn3's C++ NumberValueRangeProcessor (which
+    // declines "abc..def"). Before the MatchNothing fix the bridge
+    // returned an OP_INVALID query here, which the parser rejected
+    // with a spurious QueryParserError.
     let mut qp = build_parser();
-    match qp.parse_query_checked::<&str>("mean:abc..def", None, None) {
-        Err(ParseError { error_type, .. }) => {
-            assert_eq!(error_type, "QueryParserError");
-        }
-        other => panic!("expected Err, got {other:?}"),
-    }
+    assert!(qp
+        .parse_query_checked::<&str>("mean:abc..def", None, None)
+        .is_ok());
 }
 
 #[test]

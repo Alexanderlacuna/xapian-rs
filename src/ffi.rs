@@ -130,7 +130,7 @@ impl shim::FfiFieldProcessor_methods for RustFieldProcessor {
         let field = field.to_string();
         self.inner
             .process(&field)
-            .unwrap_or(crate::Query::invalid())
+            .unwrap_or_else(crate::Query::match_nothing)
             .to_ffi()
     }
 }
@@ -244,7 +244,7 @@ impl shim::FfiRangeProcessor_methods for RustRangeProcessor {
             (Some(start), None) => crate::Query::value_ge(self.slot, start),
             (Some(start), Some(end)) => crate::Query::value_range(self.slot, start, end),
             (None, Some(end)) => crate::Query::value_le(self.slot, end),
-            (None, None) => crate::Query::invalid(),
+            (None, None) => crate::Query::match_nothing(),
         }
         .to_ffi()
     }
