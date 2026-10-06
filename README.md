@@ -55,7 +55,7 @@ directory's integration tests are also useful.
 ## Fork notes
 
 This fork (of torrancew/xapian-rs at 0.3.0) is maintained for
-GeneNetwork4 and carries two changes:
+GeneNetwork4 and carries four changes:
 
 - `QueryParser::parse_query_checked` and the `ParseError` type: a
   checked-parse API returning typed errors instead of aborting on
@@ -67,6 +67,16 @@ GeneNetwork4 and carries two changes:
 - cxx pinned to exactly 1.0.122: the upstream caret requirement now
   resolves to cxx 1.0.202, which requires rustc 1.88; the pin keeps
   this crate building on rustc 1.85 toolchains.
+- Processor declines map to MatchNothing: a FieldProcessor or
+  RangeProcessor returning None previously produced an OP_INVALID
+  query that the parser accepted but Enquire rejected with an
+  uncatchable exception, aborting the whole process (verified
+  empirically). MatchNothing is Xapian's documented decline
+  protocol; a declined range now falls back to text exactly like
+  the C++ NumberValueRangeProcessor.
+- NumberRangeProcessor parses range bounds as f64: as f32 they lost
+  exactness above 2^24 (16777217 became 16777216), corrupting range
+  endpoints.
 
 Verified under Guix (rust 1.85.1, libxapian 1.4.29): unit tests pass,
 and the checked-parse API returns the Xapian exception class and
