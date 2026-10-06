@@ -58,10 +58,12 @@ This fork (of torrancew/xapian-rs at 0.3.0) is maintained for
 GeneNetwork4 and carries two changes:
 
 - `QueryParser::parse_query_checked` and the `ParseError` type: a
-  checked-parse API returning typed errors instead of panicking on
-  Xapian parser exceptions. `parse_query` itself still panics on
-  parser errors (unchanged upstream behavior); use the checked
-  variant where errors must be handled.
+  checked-parse API returning typed errors instead of aborting on
+  Xapian parser exceptions. The unchecked `parse_query` does not
+  merely panic on parser errors as previously documented: the C++
+  exception unwinds into Rust frames and std::terminate ABORTS THE
+  PROCESS (verified empirically). Use the checked variant for any
+  untrusted input.
 - cxx pinned to exactly 1.0.122: the upstream caret requirement now
   resolves to cxx 1.0.202, which requires rustc 1.88; the pin keeps
   this crate building on rustc 1.85 toolchains.
