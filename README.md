@@ -51,3 +51,23 @@ limitations of the `autocxx` and `cxx`):
 
 Several examples are provided in the `examples` directory. The `tests`
 directory's integration tests are also useful.
+
+## Fork notes
+
+This fork (of torrancew/xapian-rs at 0.3.0) is maintained for
+GeneNetwork4 and carries two changes:
+
+- `QueryParser::parse_query_checked` and the `ParseError` type: a
+  checked-parse API returning typed errors instead of panicking on
+  Xapian parser exceptions. `parse_query` itself still panics on
+  parser errors (unchanged upstream behavior); use the checked
+  variant where errors must be handled.
+- cxx pinned to exactly 1.0.122: the upstream caret requirement now
+  resolves to cxx 1.0.202, which requires rustc 1.88; the pin keeps
+  this crate building on rustc 1.85 toolchains.
+
+Verified under Guix (rust 1.85.1, libxapian 1.4.29): unit tests pass,
+and the checked-parse API returns the Xapian exception class and
+message for malformed queries. Build note: autocxx needs libclang;
+inside a Guix shell, point LIBCLANG_PATH at the clang package's lib
+directory (for example via the profile that provides clang).
