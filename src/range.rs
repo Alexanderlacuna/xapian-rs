@@ -63,8 +63,8 @@ impl RangeProcessor for NumberRangeProcessor {
     ) -> (Option<bytes::Bytes>, Option<bytes::Bytes>) {
         use crate::ToValue;
         (
-            start.parse::<f32>().ok().map(|x| x.serialize()),
-            end.parse::<f32>().ok().map(|x| x.serialize()),
+            start.parse::<f64>().ok().map(|x| x.serialize()),
+            end.parse::<f64>().ok().map(|x| x.serialize()),
         )
     }
 }
