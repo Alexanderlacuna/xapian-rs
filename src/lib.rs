@@ -16,7 +16,7 @@ pub use range::{NumberRangeProcessor, RangeProcessor, RangeProcessorFlags, Strin
 pub use range::{DateRangeProcessor, DateTimeRangeProcessor};
 
 mod query;
-pub use query::{FieldProcessor, Operator, Query, QueryParser};
+pub use query::{FieldProcessor, Operator, ParseError, Query, QueryParser};
 
 mod search;
 pub use search::{ESet, Enquire, ExpandDecider, MSet, Match, MatchDecider, MatchSpy, RSet};

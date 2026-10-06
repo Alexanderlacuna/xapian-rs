@@ -365,6 +365,26 @@ impl Display for Query {
     }
 }
 
+/// A typed parse failure from [`QueryParser::parse_query_checked`]
+///
+/// `error_type` is the Xapian exception class name (for example
+/// `QueryParserError`); `message` is the exception's message.
+#[derive(Clone, Debug)]
+pub struct ParseError {
+    /// The Xapian exception class name
+    pub error_type: String,
+    /// The exception message
+    pub message: String,
+}
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}: {}", self.error_type, self.message)
+    }
+}
+
+impl std::error::Error for ParseError {}
+
 /// A type for building [`Query`] objects from strings
 pub struct QueryParser(Pin<Box<ffi::QueryParser>>);
 
@@ -507,6 +527,48 @@ impl QueryParser {
                 .parse_query(&query, flags.into(), &default_prefix)
                 .within_box(),
         )
+    }
+
+    /// Parse the given query text, returning a typed [`ParseError`] instead of
+    /// panicking when the underlying parser raises a Xapian exception.
+    ///
+    /// The C++ exception is caught in the `shim` layer, so malformed queries
+    /// yield `Err(ParseError { error_type, message })` with no unwind.
+    pub fn parse_query_checked<T>(
+        &mut self,
+        query: impl AsRef<str>,
+        flags: impl Into<Option<ffi::QueryParser_feature_flag>>,
+        default_prefix: impl Into<Option<T>>,
+    ) -> Result<Query, ParseError>
+    where
+        T: AsRef<str> + Default,
+    {
+        cxx::let_cxx_string!(query = query.as_ref());
+        cxx::let_cxx_string!(default_prefix = default_prefix.into().unwrap_or_default().as_ref());
+        let flags = flags
+            .into()
+            .unwrap_or(ffi::QueryParser_feature_flag::FLAG_DEFAULT) as u32;
+        let mut error_type = "".to_cxx_string();
+        let mut message = "".to_cxx_string();
+        let parsed = ffi::shim::query_parser_parse_checked(
+            self.0.as_mut(),
+            &query,
+            autocxx::c_uint(flags),
+            &default_prefix,
+            error_type.pin_mut(),
+            message.pin_mut(),
+        );
+        // `parsed` carries a borrow of the out-params, so materialise it first
+        // to release that borrow before reading error_type/message.
+        let parsed_box = parsed.within_box();
+        if error_type.as_bytes().is_empty() {
+            Ok(Query::from_ffi(parsed_box))
+        } else {
+            Err(ParseError {
+                error_type: error_type.to_string(),
+                message: message.to_string(),
+            })
+        }
     }
 
     /// Return an iterator over terms omitted from the query as stopwords

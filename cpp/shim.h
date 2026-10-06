@@ -96,6 +96,34 @@ namespace shim {
   inline Xapian::Query query_clone(const Xapian::Query &q) { return Xapian::Query(q); }
 
   inline void query_parser_set_stopper(Xapian::QueryParser &qp, const FfiStopper *stopper) { qp.set_stopper(stopper); }
+
+  // Checked parse: runs Xapian::QueryParser::parse_query inside a C++ try/catch
+  // so any thrown Xapian::Error (notably Xapian::QueryParserError) is captured
+  // into the out-params instead of crossing the FFI boundary as a Rust panic.
+  // On success error_type is left empty and the parsed query is returned; on
+  // error error_type/message are set and an empty query is returned.
+  inline Xapian::Query query_parser_parse_checked(
+      Xapian::QueryParser &qp, const std::string &query, unsigned flags,
+      const std::string &default_prefix, std::string &error_type,
+      std::string &message
+  ) {
+    try {
+      return qp.parse_query(query, flags, default_prefix);
+    } catch (const Xapian::QueryParserError &e) {
+      error_type = e.get_type();
+      message = e.get_msg();
+    } catch (const Xapian::Error &e) {
+      error_type = e.get_type();
+      message = e.get_msg();
+    } catch (const std::exception &e) {
+      error_type = "std::exception";
+      message = e.what();
+    } catch (...) {
+      error_type = "unknown";
+      message = "non-std C++ exception";
+    }
+    return Xapian::Query();
+  }
   inline void query_parser_add_boolean_prefix(
       Xapian::QueryParser &qp, const std::string &field,
       FfiFieldProcessor *proc, const std::string *grouping
