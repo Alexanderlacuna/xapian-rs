@@ -1,7 +1,7 @@
 #![warn(missing_docs)]
 #![doc = include_str!("../README.md")]
 mod db;
-pub use db::{Database, DbAction, DbBackend, DbFlags, WritableDatabase};
+pub use db::{Database, DbAction, DbBackend, DbError, DbFlags, WritableDatabase};
 
 mod doc;
 pub use doc::Document;
@@ -22,7 +22,9 @@ mod search;
 pub use search::{ESet, Enquire, ExpandDecider, MSet, Match, MatchDecider, MatchSpy, RSet};
 
 mod term;
-pub use term::{Expansion, Stem, StemStrategy, Stopper, Term, TermGenerator};
+pub use term::{
+    Expansion, SimpleStopper, Stem, StemStrategy, StopStrategy, Stopper, Term, TermGenerator,
+};
 
 use std::num::NonZeroU32;
 

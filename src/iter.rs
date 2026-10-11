@@ -112,19 +112,17 @@ impl DoubleEndedIterator for MSetIter<'_> {
 
 #[derive(Clone)]
 pub struct PositionIter {
-    size: (u32, u32),
-    cursor: Pin<Box<ffi::PositionIterator>>,
-    end: Pin<Box<ffi::PositionIterator>>,
+    positions: std::vec::IntoIter<u32>,
 }
 
 impl PositionIter {
     pub(crate) fn new(term: &crate::Term) -> Self {
-        let size = (term.positions_len(), 0);
-        let term_iter = AsRef::<ffi::TermIterator>::as_ref(term);
+        // Back the iterator with the positions read eagerly when the term was
+        // constructed. Reading the position list lazily (by iterating the
+        // term iterator after the owning `TermIter` has advanced) associates
+        // the wrong positions with the term and can over-run the list.
         Self {
-            size,
-            cursor: term_iter.positionlist_begin().within_box(),
-            end: term_iter.positionlist_end().within_box(),
+            positions: term.positions_vec().into_iter(),
         }
     }
 }
@@ -133,21 +131,11 @@ impl Iterator for PositionIter {
     type Item = crate::Position;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.cursor == self.end {
-            false => {
-                let item = ffi::shim::position_iterator_position(&self.cursor);
-                ffi::shim::position_iterator_increment(self.cursor.as_mut());
-                self.size.1 += 1;
-                Some(item.into())
-            }
-            true => None,
-        }
+        self.positions.next().map(Into::into)
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let (total, offset) = self.size;
-        let remaining = (total - offset).try_into().unwrap();
-        (remaining, Some(remaining))
+        self.positions.size_hint()
     }
 }
 

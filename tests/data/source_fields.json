@@ -1,0 +1,22 @@
+{
+ "Qgene:100001_at:hc_u_0304_r": {
+  "alias": "T3g; Ctg3; Ctg-3",
+  "genbankid": "M18228",
+  "probe_target_description": null,
+  "unigeneid": "Mm.335106"
+ },
+ "Qphenotype:10583:bxdpublish": {
+  "Abstract": "Although the recombinant inbred strain method was designed for molecular genetic analysis of linkage, it also provides powerful quantitative genetic analyses of heritability and genetic correlations. Measures of alcohol acceptance, alcohol preference, and hypnotic dose sensitivity (HDS) were assessed in 21 strains of mice from the BXD RI series. Sex differences were found to be significant at a phenotypic level. However, heritability estimates for acceptance, preference, and HDS are similar in males and females. Heritability estimates for the three measures are approximately 0.20 for acceptance and preference, and 0.10 for HDS. Analyses of genetic correlations reveal that acceptance and preference share some degree of genetic influence, although they mostly operate under different genetically mediated mechanisms. HDS did not show a significant genetic relationship to either acceptance or preference. Strong correlations were obtained when acceptance, preference, and HDS strain means were correlated across male and female recombinant inbreds, suggesting substantial genetic similarity across sexes.",
+  "Lab_code": null,
+  "Title": "Alcohol acceptance, preference, and sensitivity in mice. I. Quantitative genetic analysis using BXD recombinant inbred strains",
+  "abbreviation": "EthanolPref-F",
+  "authors": "Rodriguez LA, Plomin R, Blizard DA, Jones BC, McClearn GE"
+ },
+ "Qphenotype:11331:bxdpublish": {
+  "Abstract": "Genetic reference populations, particularly the BXD recombinant inbred (BXD RI) strains derived from C57BL/6J and DBA/2J mice, are a valuable resource for the discovery of the bio-molecular substrates and genetic drivers responsible for trait variation and covariation. This approach can be profitably applied in the analysis of susceptibility and mechanisms of drug and alcohol use disorders for which many predisposing behaviors may predict the occurrence and manifestation of increased preference for these substances. Many of these traits are modeled by common mouse behavioral assays, facilitating the detection of patterns and sources of genetic coregulation of predisposing phenotypes and substance consumption. Members of the Tennessee Mouse Genome Consortium (TMGC) have obtained phenotype data from over 250 measures related to multiple behavioral assays across several batteries: response to, and withdrawal from cocaine, 3,4-methylenedioxymethamphetamine; \"ecstasy\" (MDMA), morphine and alcohol; novelty seeking; behavioral despair and related neurological phenomena; pain sensitivity; stress sensitivity; anxiety; hyperactivity and sleep/wake cycles. All traits have been measured in both sexes in approximately 70 strains of the recently expanded panel of BXD RI strains. Sex differences and heritability estimates were obtained for each trait, and a comparison of early (N = 32) and recent (N = 37) BXD RI lines was performed. Primary data are publicly available for heritability, sex difference and genetic analyses using the MouseTrack database, and are also available in GeneNetwork.org for quantitative trait locus (QTL) detection and genetic analysis of gene expression. Together with the results of related studies, these data form a public resource for integrative systems genetic analysis of neurobehavioral traits.",
+  "Lab_code": null,
+  "Title": "High-throughput behavioral phenotyping in the expanded panel of BXD recombinant inbred strains",
+  "abbreviation": "M_AMDIST60",
+  "authors": "Philip VM, Ansah TA, Blaha CD, Cook MN, Hamre KM, Lariviere WR, Matthews DB, Mittleman G, Goldowitz D, Chesler EJ"
+ }
+}

@@ -1,10 +1,34 @@
-use crate::ffi::{self, cxx_bytes, ToCxxString};
+use crate::ffi::{self, ToCxxString, cxx_bytes};
 
 use std::{path::Path, pin::Pin};
 
 use autocxx::{cxx, prelude::*};
 use bitflags::bitflags;
 use bytes::Bytes;
+
+/// A typed failure from a checked write operation.
+///
+/// `error_type` is the Xapian exception class name (for example
+/// `DatabaseLockError` or `InvalidArgumentError`); `message` is the
+/// exception's message. This is the write-side counterpart of
+/// [`ParseError`][crate::ParseError] and follows the same shim pattern: the
+/// C++ exception is caught in the `shim` layer, so callers get a typed error
+/// instead of a process abort.
+#[derive(Clone, Debug)]
+pub struct DbError {
+    /// The Xapian exception class name
+    pub error_type: String,
+    /// The exception message
+    pub message: String,
+}
+
+impl std::fmt::Display for DbError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.error_type, self.message)
+    }
+}
+
+impl std::error::Error for DbError {}
 
 /// A read-only Xapian database
 pub struct Database(Pin<Box<ffi::Database>>);
@@ -275,6 +299,112 @@ impl WritableDatabase {
             .as_mut()
             .replace_document1(&term, doc.as_ref())
             .into()
+    }
+
+    /// Replace any documents matching the given term, returning a typed
+    /// [`DbError`] instead of aborting on a Xapian exception.
+    ///
+    /// The C++ exception is caught in the `shim` layer, so a failure (for
+    /// example an invalid unique term) yields `Err(DbError { error_type,
+    /// message })` with no unwind. On success the returned `u32` is the docid
+    /// of the replaced document.
+    pub fn replace_document_by_term_checked(
+        &mut self,
+        term: impl AsRef<str>,
+        doc: impl AsRef<ffi::Document>,
+    ) -> Result<u32, DbError> {
+        cxx::let_cxx_string!(term = term.as_ref());
+        let mut error_type = "".to_cxx_string();
+        let mut message = "".to_cxx_string();
+        let replaced = ffi::shim::writable_database_replace_document_by_term_checked(
+            self.0.as_mut(),
+            &term,
+            doc.as_ref(),
+            error_type.pin_mut(),
+            message.pin_mut(),
+        );
+        let replaced: u32 = replaced.into();
+        if error_type.as_bytes().is_empty() {
+            Ok(replaced)
+        } else {
+            Err(DbError {
+                error_type: error_type.to_string(),
+                message: message.to_string(),
+            })
+        }
+    }
+
+    /// Delete any documents indexed by the specified term, returning the number
+    /// of documents deleted or a typed [`DbError`] instead of aborting on a
+    /// Xapian exception.
+    pub fn delete_document_by_term_checked(
+        &mut self,
+        term: impl AsRef<str>,
+    ) -> Result<(), DbError> {
+        cxx::let_cxx_string!(term = term.as_ref());
+        let mut error_type = "".to_cxx_string();
+        let mut message = "".to_cxx_string();
+        ffi::shim::writable_database_delete_document_by_term_checked(
+            self.0.as_mut(),
+            &term,
+            error_type.pin_mut(),
+            message.pin_mut(),
+        );
+        if error_type.as_bytes().is_empty() {
+            Ok(())
+        } else {
+            Err(DbError {
+                error_type: error_type.to_string(),
+                message: message.to_string(),
+            })
+        }
+    }
+
+    /// Replace the document with the given docid, returning a typed [`DbError`]
+    /// instead of aborting on a Xapian exception.
+    pub fn replace_document_checked(
+        &mut self,
+        id: impl Into<crate::DocId>,
+        doc: impl AsRef<ffi::Document>,
+    ) -> Result<(), DbError> {
+        let mut error_type = "".to_cxx_string();
+        let mut message = "".to_cxx_string();
+        ffi::shim::writable_database_replace_document_checked(
+            self.0.as_mut(),
+            ffi::docid::from(id.into()),
+            doc.as_ref(),
+            error_type.pin_mut(),
+            message.pin_mut(),
+        );
+        if error_type.as_bytes().is_empty() {
+            Ok(())
+        } else {
+            Err(DbError {
+                error_type: error_type.to_string(),
+                message: message.to_string(),
+            })
+        }
+    }
+
+    /// Delete the document with the given docid, returning a typed [`DbError`]
+    /// instead of aborting on a Xapian exception.
+    pub fn delete_document_checked(&mut self, id: impl Into<crate::DocId>) -> Result<(), DbError> {
+        let mut error_type = "".to_cxx_string();
+        let mut message = "".to_cxx_string();
+        ffi::shim::writable_database_delete_document_checked(
+            self.0.as_mut(),
+            ffi::docid::from(id.into()),
+            error_type.pin_mut(),
+            message.pin_mut(),
+        );
+        if error_type.as_bytes().is_empty() {
+            Ok(())
+        } else {
+            Err(DbError {
+                error_type: error_type.to_string(),
+                message: message.to_string(),
+            })
+        }
     }
 
     /// Wrap the function specified in `f` in a transaction

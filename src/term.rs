@@ -95,8 +95,8 @@ pub enum StemStrategy {
 
 impl From<ffi::QueryParser_stem_strategy> for StemStrategy {
     fn from(value: ffi::QueryParser_stem_strategy) -> Self {
-        use ffi::QueryParser_stem_strategy::*;
         use StemStrategy::*;
+        use ffi::QueryParser_stem_strategy::*;
 
         match value {
             STEM_NONE => None,
@@ -110,8 +110,8 @@ impl From<ffi::QueryParser_stem_strategy> for StemStrategy {
 
 impl From<ffi::TermGenerator_stem_strategy> for StemStrategy {
     fn from(value: ffi::TermGenerator_stem_strategy) -> Self {
-        use ffi::TermGenerator_stem_strategy::*;
         use StemStrategy::*;
+        use ffi::TermGenerator_stem_strategy::*;
 
         match value {
             STEM_NONE => None,
@@ -125,8 +125,8 @@ impl From<ffi::TermGenerator_stem_strategy> for StemStrategy {
 
 impl From<StemStrategy> for ffi::QueryParser_stem_strategy {
     fn from(value: StemStrategy) -> Self {
-        use ffi::QueryParser_stem_strategy::*;
         use StemStrategy::*;
+        use ffi::QueryParser_stem_strategy::*;
 
         match value {
             None => STEM_NONE,
@@ -140,8 +140,8 @@ impl From<StemStrategy> for ffi::QueryParser_stem_strategy {
 
 impl From<StemStrategy> for ffi::TermGenerator_stem_strategy {
     fn from(value: StemStrategy) -> Self {
-        use ffi::TermGenerator_stem_strategy::*;
         use StemStrategy::*;
+        use ffi::TermGenerator_stem_strategy::*;
 
         match value {
             None => STEM_NONE,
@@ -190,16 +190,20 @@ impl AsRef<ffi::Stem> for Stem {
     }
 }
 
+/// A strategy deciding which terms a stopword list is applied to
 pub enum StopStrategy {
+    /// Do not apply the stopper to any term
     None,
+    /// Apply the stopper to all terms
     All,
+    /// Apply the stopper to stemmed terms only
     Stemmed,
 }
 
 impl From<StopStrategy> for ffi::TermGenerator_stop_strategy {
     fn from(value: StopStrategy) -> Self {
-        use ffi::TermGenerator_stop_strategy::*;
         use StopStrategy::*;
+        use ffi::TermGenerator_stop_strategy::*;
 
         match value {
             None => STOP_NONE,
@@ -211,8 +215,8 @@ impl From<StopStrategy> for ffi::TermGenerator_stop_strategy {
 
 impl From<ffi::TermGenerator_stop_strategy> for StopStrategy {
     fn from(value: ffi::TermGenerator_stop_strategy) -> Self {
-        use ffi::TermGenerator_stop_strategy::*;
         use StopStrategy::*;
+        use ffi::TermGenerator_stop_strategy::*;
 
         match value {
             STOP_NONE => None,
@@ -258,6 +262,50 @@ impl Stopper for HashSet<&str> {
     }
 }
 
+/// A concrete binding to Xapian's own `SimpleStopper`.
+///
+/// This is the stopper type the reference indexer instantiates as an empty
+/// `xapian.SimpleStopper()`; because the list is empty and the stop strategy is
+/// `STOP_ALL`, nothing is actually stopped, and that non-functional
+/// configuration must be reproduced verbatim rather than "fixed".
+///
+/// `SimpleStopper` implements [`Stopper`], so it can be passed directly to
+/// [`TermGenerator::set_stopper`] and [`QueryParser::set_stopper`] exactly like
+/// any other stopper. Words can be added with [`SimpleStopper::add`].
+pub struct SimpleStopper(Pin<Box<ffi::SimpleStopper>>);
+
+impl SimpleStopper {
+    /// Construct an empty stopper, matching `xapian.SimpleStopper()`.
+    pub fn new() -> Self {
+        Self(ffi::SimpleStopper::new().within_box())
+    }
+
+    /// Add a stopword to the underlying stopper.
+    pub fn add(&mut self, word: impl AsRef<str>) {
+        cxx::let_cxx_string!(word = word.as_ref());
+        ffi::shim::simple_stopper_add(self.0.as_mut(), &word)
+    }
+}
+
+impl Default for SimpleStopper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl AsRef<ffi::SimpleStopper> for SimpleStopper {
+    fn as_ref(&self) -> &ffi::SimpleStopper {
+        &self.0
+    }
+}
+
+impl Stopper for SimpleStopper {
+    fn is_stopword(&self, word: &str) -> bool {
+        cxx::let_cxx_string!(word = word);
+        ffi::shim::simple_stopper_is_stopword(&self.0, &word)
+    }
+}
+
 pub(crate) struct StopperObj(Rc<RefCell<ffi::RustStopper>>);
 
 impl StopperObj {
@@ -275,13 +323,35 @@ impl<T: Stopper + 'static> From<T> for StopperObj {
 /// An individual `term`, with access to position and frequency information
 pub struct Term {
     value: UniquePtr<CxxString>,
+    wdf: u32,
+    positions: Vec<u32>,
     ptr: Pin<Box<ffi::TermIterator>>,
 }
 
 impl Term {
     pub(crate) fn new(ptr: Pin<Box<ffi::TermIterator>>) -> Self {
         let value = ffi::shim::term_iterator_term(&ptr);
-        Self { value, ptr }
+        // Read the per-term stats eagerly, while the term iterator is still on
+        // this term. The lazily-read variants (`Term::positions`,
+        // `Term::positions_len`, `Term::wdf`) read the iterator state only when
+        // polled, by which point the owning `TermIter` has already advanced.
+        let wdf = ptr.get_wdf().into();
+        let positions = {
+            let mut out = Vec::new();
+            let mut cursor = ptr.positionlist_begin().within_box();
+            let end = ptr.positionlist_end().within_box();
+            while cursor != end {
+                out.push(u32::from(ffi::shim::position_iterator_position(&cursor)));
+                ffi::shim::position_iterator_increment(cursor.as_mut());
+            }
+            out
+        };
+        Self {
+            value,
+            wdf,
+            positions,
+            ptr,
+        }
     }
 
     /// Get the frequency of this term
@@ -291,7 +361,7 @@ impl Term {
 
     /// Get the number of occurrences of this term
     pub fn positions_len(&self) -> u32 {
-        self.ptr.positionlist_count().into()
+        self.positions.len() as u32
     }
 
     /// Get an iterator over the specific occurrences of this term
@@ -299,9 +369,21 @@ impl Term {
         crate::iter::PositionIter::new(self)
     }
 
+    /// Get the occurrence positions of this term, read eagerly when the term
+    /// was constructed.
+    ///
+    /// Unlike the lazy [`Term::positions`] iterator, this returns the positions
+    /// that actually belong to this term: the owning
+    /// [`TermIter`][crate::Term] advances to the next term before a lazy
+    /// iterator would be polled, so a lazily-read position list can belong to a
+    /// neighbouring term.
+    pub fn positions_vec(&self) -> Vec<u32> {
+        self.positions.clone()
+    }
+
     /// Get the within-document-frequency for this term
     pub fn wdf(&self) -> u32 {
-        self.ptr.get_wdf().into()
+        self.wdf
     }
 }
 
@@ -387,6 +469,29 @@ impl TermGenerator {
     /// Set the currently active document
     pub fn set_document(&mut self, doc: impl AsRef<ffi::Document>) {
         self.0.as_mut().set_document(doc.as_ref())
+    }
+
+    /// Index some text without attaching positional information
+    ///
+    /// Equivalent to Xapian's `index_text_without_positions`: the
+    /// within-document-frequency for the text is increased by `increment` (or
+    /// 1 if `None`) and, when provided, the text is prefixed with `prefix`.
+    /// The term position counter is left untouched.
+    pub fn index_text_without_positions<T>(
+        &mut self,
+        text: impl AsRef<str>,
+        increment: impl Into<Option<u32>>,
+        prefix: impl Into<Option<T>>,
+    ) where
+        T: AsRef<str> + Default,
+    {
+        cxx::let_cxx_string!(text = text.as_ref());
+        cxx::let_cxx_string!(prefix = prefix.into().unwrap_or_default().as_ref());
+        self.0.as_mut().index_text_without_positions1(
+            &text,
+            increment.into().unwrap_or(1).into(),
+            &prefix,
+        )
     }
 
     /// Set the stemmer to be used when indexing text

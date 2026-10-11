@@ -52,6 +52,11 @@ impl Document {
         self.0.as_mut().clear_terms()
     }
 
+    /// Remove all value slots and their contents from the document
+    pub fn clear_values(&mut self) {
+        self.0.as_mut().clear_values()
+    }
+
     /// Get the data blob stored in this document
     pub fn data(&self) -> Bytes {
         ffi::cxx_bytes(&self.0.get_data())

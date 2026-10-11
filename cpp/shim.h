@@ -141,6 +141,96 @@ namespace shim {
 
   inline void term_generator_set_stopper(Xapian::TermGenerator &tg, const FfiStopper *stopper) { return tg.set_stopper(stopper); }
 
+  // Write-API surface for the fork's schema-compatibility work. These are
+  // additive: the unchecked entry points keep their signatures and behaviour.
+  //
+  // simple_stopper_is_stopword / simple_stopper_add expose the concrete
+  // Xapian::SimpleStopper so the Rust side can wire it into the TermGenerator
+  // exactly as the reference indexer does (`set_stopper(SimpleStopper())`).
+  inline bool simple_stopper_is_stopword(const Xapian::SimpleStopper &s, const std::string &word) {
+    return s(word);
+  }
+  inline void simple_stopper_add(Xapian::SimpleStopper &s, const std::string &word) {
+    s.add(word);
+  }
+
+  // Checked write operations. Each runs the throwing Xapian call inside a
+  // C++ try/catch and reports any Xapian::Error (or std::exception) through
+  // error_type/message instead of letting the exception unwind across the FFI
+  // boundary. This mirrors query_parser_parse_checked: on success error_type is
+  // left empty; on failure it carries the exception class name and message.
+  inline unsigned int writable_database_replace_document_by_term_checked(
+      Xapian::WritableDatabase &db, const std::string &term,
+      const Xapian::Document &doc, std::string &error_type,
+      std::string &message
+  ) {
+    try {
+      return db.replace_document(term, doc);
+    } catch (const Xapian::Error &e) {
+      error_type = e.get_type();
+      message = e.get_msg();
+    } catch (const std::exception &e) {
+      error_type = "std::exception";
+      message = e.what();
+    } catch (...) {
+      error_type = "unknown";
+      message = "non-std C++ exception";
+    }
+    return 0;
+  }
+  inline void writable_database_delete_document_by_term_checked(
+      Xapian::WritableDatabase &db, const std::string &term,
+      std::string &error_type, std::string &message
+  ) {
+    try {
+      db.delete_document(term);
+    } catch (const Xapian::Error &e) {
+      error_type = e.get_type();
+      message = e.get_msg();
+    } catch (const std::exception &e) {
+      error_type = "std::exception";
+      message = e.what();
+    } catch (...) {
+      error_type = "unknown";
+      message = "non-std C++ exception";
+    }
+  }
+  inline void writable_database_replace_document_checked(
+      Xapian::WritableDatabase &db, Xapian::docid did,
+      const Xapian::Document &doc, std::string &error_type,
+      std::string &message
+  ) {
+    try {
+      db.replace_document(did, doc);
+    } catch (const Xapian::Error &e) {
+      error_type = e.get_type();
+      message = e.get_msg();
+    } catch (const std::exception &e) {
+      error_type = "std::exception";
+      message = e.what();
+    } catch (...) {
+      error_type = "unknown";
+      message = "non-std C++ exception";
+    }
+  }
+  inline void writable_database_delete_document_checked(
+      Xapian::WritableDatabase &db, Xapian::docid did,
+      std::string &error_type, std::string &message
+  ) {
+    try {
+      db.delete_document(did);
+    } catch (const Xapian::Error &e) {
+      error_type = e.get_type();
+      message = e.get_msg();
+    } catch (const std::exception &e) {
+      error_type = "std::exception";
+      message = e.what();
+    } catch (...) {
+      error_type = "unknown";
+      message = "non-std C++ exception";
+    }
+  }
+
   inline Xapian::TermIterator term_iterator_copy(const Xapian::TermIterator &it) { return Xapian::TermIterator(it); }
   inline bool term_iterator_eq(const Xapian::TermIterator &a, const Xapian::TermIterator &b) { return a == b; }
   inline void term_iterator_increment(Xapian::TermIterator &it) { it++; }
