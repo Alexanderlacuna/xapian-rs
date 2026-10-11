@@ -179,14 +179,22 @@ impl ExactSizeIterator for SubqueryIter<'_> {}
 pub struct TermIter {
     cursor: Pin<Box<ffi::TermIterator>>,
     end: Pin<Box<ffi::TermIterator>>,
+    /// Whether the underlying term iterator carries position data (true only
+    /// for a document termlist). See `Term::new`.
+    read_positions: bool,
 }
 
 impl TermIter {
     pub(crate) fn new(
         start: Pin<Box<ffi::TermIterator>>,
         end: Pin<Box<ffi::TermIterator>>,
+        read_positions: bool,
     ) -> Self {
-        Self { cursor: start, end }
+        Self {
+            cursor: start,
+            end,
+            read_positions,
+        }
     }
 }
 
@@ -202,7 +210,7 @@ impl Iterator for TermIter {
     fn next(&mut self) -> Option<Self::Item> {
         match self.cursor == self.end {
             false => {
-                let term = crate::Term::new(self.cursor.clone());
+                let term = crate::Term::new(self.cursor.clone(), self.read_positions);
                 ffi::shim::term_iterator_increment(self.cursor.as_mut());
                 Some(term)
             }

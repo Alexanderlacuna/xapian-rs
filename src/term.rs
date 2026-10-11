@@ -329,14 +329,20 @@ pub struct Term {
 }
 
 impl Term {
-    pub(crate) fn new(ptr: Pin<Box<ffi::TermIterator>>) -> Self {
+    pub(crate) fn new(ptr: Pin<Box<ffi::TermIterator>>, read_positions: bool) -> Self {
         let value = ffi::shim::term_iterator_term(&ptr);
         // Read the per-term stats eagerly, while the term iterator is still on
         // this term. The lazily-read variants (`Term::positions`,
         // `Term::positions_len`, `Term::wdf`) read the iterator state only when
         // polled, by which point the owning `TermIter` has already advanced.
         let wdf = ptr.get_wdf().into();
-        let positions = {
+        // A query's term iterator (Query::terms / unique_terms) and the query
+        // parser's stoplist/unstem iterators carry no position data: asking
+        // Xapian for it throws Xapian::InvalidOperationError, which is not
+        // translated across the FFI boundary and aborts the process. Only a
+        // document termlist has positions, so `TermIter` tells `Term` whether
+        // reading them is allowed.
+        let positions = if read_positions {
             let mut out = Vec::new();
             let mut cursor = ptr.positionlist_begin().within_box();
             let end = ptr.positionlist_end().within_box();
@@ -345,6 +351,8 @@ impl Term {
                 ffi::shim::position_iterator_increment(cursor.as_mut());
             }
             out
+        } else {
+            Vec::new()
         };
         Self {
             value,

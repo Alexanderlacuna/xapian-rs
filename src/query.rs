@@ -302,6 +302,7 @@ impl Query {
         crate::iter::TermIter::new(
             self.0.get_terms_begin().within_box(),
             self.0.get_terms_end().within_box(),
+            false,
         )
     }
 
@@ -314,6 +315,7 @@ impl Query {
         crate::iter::TermIter::new(
             self.0.get_unique_terms_begin().within_box(),
             self.0.get_unique_terms_end().within_box(),
+            false,
         )
     }
 }
@@ -576,6 +578,7 @@ impl QueryParser {
         crate::iter::TermIter::new(
             self.0.stoplist_begin().within_box(),
             self.0.stoplist_end().within_box(),
+            false,
         )
     }
 
@@ -585,6 +588,7 @@ impl QueryParser {
         crate::iter::TermIter::new(
             self.0.unstem_begin(&term).within_box(),
             self.0.unstem_end(&term).within_box(),
+            false,
         )
     }
 }

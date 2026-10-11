@@ -97,6 +97,7 @@ impl Document {
         crate::iter::TermIter::new(
             self.0.termlist_begin().within_box(),
             self.0.termlist_end().within_box(),
+            true,
         )
     }
 
